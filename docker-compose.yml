@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: my-little-magik-book-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: magikbook
+      POSTGRES_PASSWORD: magikbook_dev_password
+      POSTGRES_DB: magikbook
+    ports:
+      - "5432:5432"
+    volumes:
+      - magikbook_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U magikbook -d magikbook"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  magikbook_pgdata:

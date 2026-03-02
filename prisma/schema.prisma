@@ -1,0 +1,114 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum FriendRequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum DeckMode {
+  MAIN
+  AGGRESSIVE
+  DEFENSIVE
+  YOLO
+}
+
+enum DeckVisibility {
+  PRIVATE
+  FRIENDS
+  PUBLIC
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  displayName  String?  @map("display_name")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt      @map("updated_at")
+
+  decks Deck[]
+  sessions Session[]
+
+  friendRequestsSent     FriendRequest[] @relation("FriendRequestsSent")
+  friendRequestsReceived FriendRequest[] @relation("FriendRequestsReceived")
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String   @map("user_id")
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model FriendRequest {
+  id        String              @id @default(uuid())
+  fromUser  User                @relation("FriendRequestsSent", fields: [fromUserId], references: [id], onDelete: Cascade)
+  fromUserId String             @map("from_user_id")
+
+  toUser    User                @relation("FriendRequestsReceived", fields: [toUserId], references: [id], onDelete: Cascade)
+  toUserId  String              @map("to_user_id")
+
+  status    FriendRequestStatus @default(PENDING)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt      @map("updated_at")
+
+  @@index([toUserId, status])
+  @@index([fromUserId, status])
+  @@unique([fromUserId, toUserId, status], map: "uniq_friend_request_triplet")
+  @@map("friend_requests")
+}
+
+model Deck {
+  id         String         @id @default(uuid())
+  owner      User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId    String         @map("owner_id")
+
+  name       String
+  mode       DeckMode       @default(MAIN)
+  visibility DeckVisibility @default(PRIVATE)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt      @map("updated_at")
+
+  cards DeckCard[]
+
+  @@index([ownerId, mode])
+  @@map("decks")
+}
+
+model DeckCard {
+  deck    Deck   @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  deckId  String @map("deck_id")
+
+  cardId  String @map("card_id")
+  quantity Int   @default(1)
+
+  @@id([deckId, cardId])
+  @@map("deck_cards")
+}
+
+model CardCache {
+  cardId     String   @id @map("card_id")
+  payloadJson Json    @map("payload_json")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("card_cache")
+}

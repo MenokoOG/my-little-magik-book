@@ -1,0 +1,3 @@
+https://docs.magicthegathering.io/
+https://api.magicthegathering.io
+https://medium.com/strategio/magic-the-gathering-card-api-72bbc7720e9e
