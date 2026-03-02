@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" role="img" aria-label="My Little Magik Book icon">
+  <rect width="192" height="192" rx="32" fill="#111827" />
+  <rect x="32" y="24" width="128" height="144" rx="12" fill="#f3f4f6" />
+  <path d="M52 52h88v12H52zm0 26h88v8H52zm0 18h88v8H52zm0 18h62v8H52z" fill="#111827" />
+  <circle cx="132" cy="134" r="18" fill="#7c3aed" />
+  <path d="M132 122l4 9h10l-8 6 3 10-9-6-9 6 3-10-8-6h10z" fill="#f8fafc" />
+</svg>

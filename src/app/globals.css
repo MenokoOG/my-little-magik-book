@@ -2,8 +2,23 @@
 
 body {
   min-height: 100vh;
+  @apply bg-slate-50 text-slate-900 antialiased transition-colors duration-300;
+}
+
+.dark body {
+  @apply bg-slate-950 text-slate-100;
 }
 
 a {
   color: inherit;
+}
+
+input,
+select,
+textarea {
+  @apply border-slate-300 bg-white/90 text-slate-900 transition-colors dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100;
+}
+
+button {
+  @apply transition;
 }

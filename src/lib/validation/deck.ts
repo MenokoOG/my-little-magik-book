@@ -32,3 +32,11 @@ export const ReplaceDeckCardsSchema = z.object({
         )
         .max(200),
 });
+
+export const RecommendationModeSchema = z.enum([
+    "aggressive",
+    "defensive",
+    "yolo",
+]);
+
+export type RecommendationMode = z.infer<typeof RecommendationModeSchema>;

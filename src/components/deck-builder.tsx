@@ -1,12 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import {
   DndContext,
   type DragEndEvent,
   useDraggable,
   useDroppable,
 } from "@dnd-kit/core";
+import {
+  buildDeckWarnings,
+  buildManaCurve,
+  countDeckCards,
+} from "@/lib/decks/stats";
 
 type DeckMode = "MAIN" | "AGGRESSIVE" | "DEFENSIVE" | "YOLO";
 type DeckVisibility = "PRIVATE" | "FRIENDS" | "PUBLIC";
@@ -29,6 +35,13 @@ type CardMeta = {
   name: string;
   manaValue: number | null;
   typeLine: string;
+  imageUrl: string | null;
+};
+
+type DeckRecommendation = {
+  card_id: string;
+  score: number;
+  reason: string;
 };
 
 type CardsSearchResponse = {
@@ -42,9 +55,17 @@ const MODE_LABELS: Record<DeckMode, string> = {
   YOLO: "YOLO",
 };
 
+const MODE_QUERY: Record<DeckMode, "aggressive" | "defensive" | "yolo"> = {
+  MAIN: "aggressive",
+  AGGRESSIVE: "aggressive",
+  DEFENSIVE: "defensive",
+  YOLO: "yolo",
+};
+
 function parseCardMeta(raw: Record<string, unknown>): CardMeta {
   const id = String(raw.id ?? "");
   const name = String((raw.name ?? id) || "Unknown card");
+  const image = raw.imageUrl;
   const cmcRaw = raw.cmc;
   const manaValue =
     typeof cmcRaw === "number"
@@ -58,6 +79,7 @@ function parseCardMeta(raw: Record<string, unknown>): CardMeta {
     name,
     manaValue: Number.isFinite(manaValue ?? NaN) ? Number(manaValue) : null,
     typeLine: String(raw.type ?? "Unknown type"),
+    imageUrl: typeof image === "string" && image.trim() ? image : null,
   };
 }
 
@@ -87,17 +109,33 @@ function DraggableCard({
     <li
       ref={setNodeRef}
       style={style}
-      className={`rounded border p-3 ${isDragging ? "opacity-60" : "opacity-100"}`}
+      className={`rounded-xl border border-slate-200 bg-white/80 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900/70 ${isDragging ? "opacity-60" : "opacity-100"}`}
     >
-      <button
-        type="button"
-        className="w-full cursor-grab text-left active:cursor-grabbing"
-        {...listeners}
-        {...attributes}
-      >
-        <p className="font-medium">{card.name}</p>
-        <p className="text-xs opacity-75">{subtitle}</p>
-      </button>
+      <div className="flex items-start gap-3">
+        {card.imageUrl ? (
+          <Image
+            src={card.imageUrl}
+            alt={card.name}
+            width={48}
+            height={64}
+            unoptimized
+            className="h-16 w-12 rounded-md border border-slate-200 object-cover dark:border-slate-700"
+          />
+        ) : (
+          <div className="flex h-16 w-12 items-center justify-center rounded-md border border-slate-200 text-[10px] opacity-70 dark:border-slate-700">
+            No art
+          </div>
+        )}
+        <button
+          type="button"
+          className="w-full cursor-grab text-left active:cursor-grabbing"
+          {...listeners}
+          {...attributes}
+        >
+          <p className="font-medium">{card.name}</p>
+          <p className="text-xs opacity-75">{subtitle}</p>
+        </button>
+      </div>
       {actions ? <div className="mt-2">{actions}</div> : null}
     </li>
   );
@@ -117,7 +155,7 @@ function DropZone({
   return (
     <section
       ref={setNodeRef}
-      className={`rounded border p-4 ${isOver ? "border-black" : "border-current"}`}
+      className={`rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/70 ${isOver ? "ring-2 ring-indigo-500" : ""}`}
     >
       <h3 className="mb-3 text-lg font-semibold">{title}</h3>
       {children}
@@ -140,6 +178,13 @@ export function DeckBuilder() {
     "idle",
   );
   const [savingCards, setSavingCards] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
+  const [recommendations, setRecommendations] = useState<DeckRecommendation[]>(
+    [],
+  );
+  const [recommendationState, setRecommendationState] = useState<
+    "idle" | "loading" | "error"
+  >("idle");
 
   const activeDeck = useMemo(
     () => decks.find((deck) => deck.mode === activeMode) ?? null,
@@ -159,6 +204,21 @@ export function DeckBuilder() {
 
     setDecks(Array.isArray(data.decks) ? (data.decks as Deck[]) : []);
     setLoadingDecks(false);
+  }, []);
+
+  useEffect(() => {
+    const syncOnlineState = () => {
+      setIsOffline(!navigator.onLine);
+    };
+
+    syncOnlineState();
+    window.addEventListener("online", syncOnlineState);
+    window.addEventListener("offline", syncOnlineState);
+
+    return () => {
+      window.removeEventListener("online", syncOnlineState);
+      window.removeEventListener("offline", syncOnlineState);
+    };
   }, []);
 
   useEffect(() => {
@@ -285,12 +345,113 @@ export function DeckBuilder() {
     };
   }, [activeDeck, cardMetaById]);
 
+  useEffect(() => {
+    if (!activeDeck || !csrfToken) {
+      setRecommendations([]);
+      return;
+    }
+
+    const deckId = activeDeck.id;
+
+    const controller = new AbortController();
+
+    async function loadRecommendations() {
+      setRecommendationState("loading");
+      try {
+        const response = await fetch(
+          `/api/decks/${deckId}/recommendations?mode=${MODE_QUERY[activeMode]}`,
+          {
+            method: "POST",
+            headers: {
+              "x-csrf-token": csrfToken,
+            },
+            signal: controller.signal,
+          },
+        );
+
+        const data = (await response.json().catch(() => ({}))) as {
+          recommendations?: DeckRecommendation[];
+          error?: string;
+        };
+
+        if (!response.ok) {
+          setRecommendationState("error");
+          setStatus(data.error ?? "Could not load recommendations");
+          return;
+        }
+
+        setRecommendations(
+          Array.isArray(data.recommendations) ? data.recommendations : [],
+        );
+        setRecommendationState("idle");
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+
+        setRecommendationState("error");
+      }
+    }
+
+    void loadRecommendations();
+
+    return () => controller.abort();
+  }, [activeDeck, activeMode, csrfToken]);
+
+  useEffect(() => {
+    const missingRecommended = recommendations
+      .map((entry) => entry.card_id)
+      .filter((cardId) => !cardMetaById[cardId]);
+
+    if (missingRecommended.length === 0) {
+      return;
+    }
+
+    let canceled = false;
+
+    async function hydrateRecommendedMeta() {
+      for (const cardId of missingRecommended.slice(0, 12)) {
+        try {
+          const response = await fetch(
+            `/api/cards/${encodeURIComponent(cardId)}`,
+          );
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok || canceled) {
+            continue;
+          }
+
+          const rawCard = (data as { card?: Record<string, unknown> }).card;
+          if (!rawCard) {
+            continue;
+          }
+
+          const parsed = parseCardMeta(rawCard);
+          if (!parsed.id) {
+            continue;
+          }
+
+          setCardMetaById((prev) => ({ ...prev, [parsed.id]: parsed }));
+        } catch {
+          if (canceled) {
+            return;
+          }
+        }
+      }
+    }
+
+    void hydrateRecommendedMeta();
+
+    return () => {
+      canceled = true;
+    };
+  }, [cardMetaById, recommendations]);
+
   const deckCount = useMemo(() => {
     if (!activeDeck) {
       return 0;
     }
 
-    return activeDeck.cards.reduce((total, card) => total + card.quantity, 0);
+    return countDeckCards(activeDeck.cards);
   }, [activeDeck]);
 
   const manaCurve = useMemo(() => {
@@ -298,35 +459,7 @@ export function DeckBuilder() {
       return [] as Array<{ bucket: string; count: number }>;
     }
 
-    const buckets: Record<string, number> = {
-      "0-1": 0,
-      "2": 0,
-      "3": 0,
-      "4": 0,
-      "5+": 0,
-      Unknown: 0,
-    };
-
-    for (const card of activeDeck.cards) {
-      const meta = cardMetaById[card.cardId];
-      if (!meta || meta.manaValue === null) {
-        buckets.Unknown += card.quantity;
-        continue;
-      }
-
-      if (meta.manaValue <= 1) {
-        buckets["0-1"] += card.quantity;
-      } else if (meta.manaValue >= 5) {
-        buckets["5+"] += card.quantity;
-      } else {
-        buckets[String(meta.manaValue)] += card.quantity;
-      }
-    }
-
-    return Object.entries(buckets).map(([bucket, count]) => ({
-      bucket,
-      count,
-    }));
+    return buildManaCurve(activeDeck.cards, cardMetaById);
   }, [activeDeck, cardMetaById]);
 
   const warnings = useMemo(() => {
@@ -334,18 +467,7 @@ export function DeckBuilder() {
       return [] as string[];
     }
 
-    const nextWarnings: string[] = [];
-
-    if (deckCount < 60) {
-      nextWarnings.push("Deck has fewer than 60 total cards.");
-    }
-
-    const tooManyCopies = activeDeck.cards.find((card) => card.quantity > 4);
-    if (tooManyCopies) {
-      nextWarnings.push("One or more cards exceed 4 copies.");
-    }
-
-    return nextWarnings;
+    return buildDeckWarnings(activeDeck.cards, deckCount);
   }, [activeDeck, deckCount]);
 
   async function saveCards(nextCards: DeckCard[]) {
@@ -353,7 +475,7 @@ export function DeckBuilder() {
       return;
     }
 
-    if (!navigator.onLine) {
+    if (isOffline) {
       setStatus(
         "You are offline. Deck writes are disabled until connection returns.",
       );
@@ -397,6 +519,13 @@ export function DeckBuilder() {
       return;
     }
 
+    if (isOffline) {
+      setStatus(
+        "You are offline. Deck writes are disabled until connection returns.",
+      );
+      return;
+    }
+
     const previousDecks = decks;
     setDecks((current) =>
       current.map((deck) =>
@@ -425,7 +554,7 @@ export function DeckBuilder() {
   }
 
   function addCard(cardId: string) {
-    if (!activeDeck || savingCards) {
+    if (!activeDeck || savingCards || isOffline) {
       return;
     }
 
@@ -442,7 +571,7 @@ export function DeckBuilder() {
   }
 
   function decrementCard(cardId: string) {
-    if (!activeDeck || savingCards) {
+    if (!activeDeck || savingCards || isOffline) {
       return;
     }
 
@@ -499,12 +628,18 @@ export function DeckBuilder() {
             key={mode}
             type="button"
             onClick={() => setActiveMode(mode)}
-            className={`rounded border px-3 py-2 text-sm ${activeMode === mode ? "font-semibold" : ""}`}
+            className={`rounded-xl border px-3 py-2 text-sm ${activeMode === mode ? "border-indigo-500 bg-indigo-50 font-semibold dark:bg-indigo-950/40" : "border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-900"}`}
           >
             {MODE_LABELS[mode]}
           </button>
         ))}
       </div>
+
+      {isOffline ? (
+        <p className="text-sm">
+          Offline mode: deck writes are paused to protect your data.
+        </p>
+      ) : null}
 
       {loadingDecks ? <p className="text-sm">Loading decks...</p> : null}
 
@@ -516,7 +651,7 @@ export function DeckBuilder() {
         <>
           <div className="grid gap-3 md:grid-cols-2">
             <label className="space-y-1">
-              <span className="text-sm">Deck name</span>
+              <span className="text-sm font-medium">Deck name</span>
               <input
                 value={activeDeck.name}
                 onChange={(event) => {
@@ -528,12 +663,13 @@ export function DeckBuilder() {
                   );
                 }}
                 onBlur={() => void updateDeckMeta({ name: activeDeck.name })}
-                className="w-full rounded border px-3 py-2"
+                disabled={isOffline}
+                className="w-full rounded-xl border px-3 py-2"
               />
             </label>
 
             <label className="space-y-1">
-              <span className="text-sm">Visibility</span>
+              <span className="text-sm font-medium">Visibility</span>
               <select
                 value={activeDeck.visibility}
                 onChange={(event) => {
@@ -547,7 +683,8 @@ export function DeckBuilder() {
                   );
                   void updateDeckMeta({ visibility });
                 }}
-                className="w-full rounded border px-3 py-2"
+                disabled={isOffline}
+                className="w-full rounded-xl border px-3 py-2"
               >
                 <option value="PRIVATE">Private</option>
                 <option value="FRIENDS">Friends</option>
@@ -555,6 +692,70 @@ export function DeckBuilder() {
               </select>
             </label>
           </div>
+
+          <section className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/70">
+            <h3 className="text-lg font-semibold">Recommendations</h3>
+            <p className="mt-1 text-sm opacity-80">
+              Mode-aware suggestions with explainable scoring.
+            </p>
+
+            {recommendationState === "loading" ? (
+              <p className="mt-2 text-sm">Loading recommendations...</p>
+            ) : null}
+
+            {recommendationState === "error" ? (
+              <p className="mt-2 text-sm">
+                Recommendations are unavailable right now.
+              </p>
+            ) : null}
+
+            {recommendationState === "idle" && recommendations.length === 0 ? (
+              <p className="mt-2 text-sm">
+                No suggestions available yet. Add a few cards to improve
+                signals.
+              </p>
+            ) : null}
+
+            {recommendations.length > 0 ? (
+              <ul className="mt-3 space-y-2">
+                {recommendations.map((item) => {
+                  const meta = cardMetaById[item.card_id];
+                  return (
+                    <li
+                      key={item.card_id}
+                      className="rounded-xl border border-slate-200 bg-white/80 p-3 text-sm dark:border-slate-700 dark:bg-slate-900/70"
+                    >
+                      {meta?.imageUrl ? (
+                        <Image
+                          src={meta.imageUrl}
+                          alt={meta.name}
+                          width={488}
+                          height={680}
+                          unoptimized
+                          className="mb-2 h-36 w-full rounded-lg border border-slate-200 object-contain dark:border-slate-700"
+                        />
+                      ) : null}
+                      <p className="font-medium">
+                        {meta?.name ?? item.card_id}
+                      </p>
+                      <p className="opacity-80">
+                        Score {item.score.toFixed(2)}
+                      </p>
+                      <p className="opacity-80">{item.reason}</p>
+                      <button
+                        type="button"
+                        className="mt-2 rounded-lg border px-2 py-1 text-xs"
+                        disabled={isOffline || savingCards}
+                        onClick={() => addCard(item.card_id)}
+                      >
+                        Add to deck
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : null}
+          </section>
 
           <DndContext onDragEnd={onDragEnd}>
             <div className="grid gap-4 lg:grid-cols-2">
@@ -568,7 +769,8 @@ export function DeckBuilder() {
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                     placeholder="Try: lightning, dragon, elf..."
-                    className="w-full rounded border px-3 py-2"
+                    disabled={isOffline}
+                    className="w-full rounded-xl border px-3 py-2"
                   />
                 </div>
 
@@ -594,7 +796,8 @@ export function DeckBuilder() {
                       actions={
                         <button
                           type="button"
-                          className="rounded border px-2 py-1 text-xs"
+                          className="rounded-lg border px-2 py-1 text-xs"
+                          disabled={isOffline || savingCards}
                           onClick={() => addCard(card.id)}
                         >
                           Add to deck
@@ -639,6 +842,7 @@ export function DeckBuilder() {
                           name: entry.cardId,
                           manaValue: null,
                           typeLine: "Unknown type",
+                          imageUrl: null,
                         } as CardMeta);
 
                       return (
@@ -651,14 +855,16 @@ export function DeckBuilder() {
                             <div className="flex items-center gap-2">
                               <button
                                 type="button"
-                                className="rounded border px-2 py-1 text-xs"
+                                className="rounded-lg border px-2 py-1 text-xs"
+                                disabled={isOffline || savingCards}
                                 onClick={() => decrementCard(entry.cardId)}
                               >
                                 -
                               </button>
                               <button
                                 type="button"
-                                className="rounded border px-2 py-1 text-xs"
+                                className="rounded-lg border px-2 py-1 text-xs"
+                                disabled={isOffline || savingCards}
                                 onClick={() => addCard(entry.cardId)}
                               >
                                 +
