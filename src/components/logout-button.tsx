@@ -48,7 +48,7 @@ export function LogoutButton() {
 
   return (
     <button
-      className="rounded-xl border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200 dark:hover:bg-rose-900/50"
+      className="mlmb-focus-ring rounded-xl border border-rose-400/80 bg-rose-100/85 px-3 py-1.5 text-xs font-medium text-rose-900 hover:bg-rose-100 dark:border-rose-700 dark:bg-rose-900/50 dark:text-rose-100 dark:hover:bg-rose-900/70"
       onClick={onLogout}
       disabled={loading}
       type="button"

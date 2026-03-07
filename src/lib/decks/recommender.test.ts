@@ -12,6 +12,8 @@ describe("buildDeckRecommendations", () => {
             text: "Haste",
             power: "2",
             toughness: "1",
+            colors: ["Red"],
+            colorIdentity: ["R"],
         },
         {
             id: "c2",
@@ -21,6 +23,8 @@ describe("buildDeckRecommendations", () => {
             text: "Flying. You gain 4 life.",
             power: "4",
             toughness: "5",
+            colors: ["White"],
+            colorIdentity: ["W"],
         },
         {
             id: "c3",
@@ -28,6 +32,40 @@ describe("buildDeckRecommendations", () => {
             cmc: 2,
             type: "Instant",
             text: "Destroy target creature.",
+            colors: ["Red"],
+            colorIdentity: ["R"],
+        },
+        {
+            id: "c4",
+            name: "Ocean Leviathan",
+            cmc: 6,
+            type: "Creature — Leviathan",
+            text: "Ward 2",
+            power: "6",
+            toughness: "6",
+            colors: ["Blue"],
+            colorIdentity: ["U"],
+        },
+    ] as Array<Record<string, unknown>>;
+
+    const deckContext = [
+        {
+            id: "d1",
+            name: "Goblin Scout",
+            cmc: 1,
+            type: "Creature — Goblin",
+            text: "Haste",
+            colors: ["Red"],
+            colorIdentity: ["R"],
+        },
+        {
+            id: "d2",
+            name: "Goblin Brute",
+            cmc: 2,
+            type: "Creature — Goblin",
+            text: "Haste",
+            colors: ["Red"],
+            colorIdentity: ["R"],
         },
     ] as Array<Record<string, unknown>>;
 
@@ -35,6 +73,7 @@ describe("buildDeckRecommendations", () => {
         const output = buildDeckRecommendations({
             mode: "aggressive",
             deckCardIds: [],
+            deckContextRaw: deckContext,
             candidatesRaw: candidates,
             limit: 3,
         });
@@ -50,6 +89,7 @@ describe("buildDeckRecommendations", () => {
         const output = buildDeckRecommendations({
             mode: "defensive",
             deckCardIds: ["c3"],
+            deckContextRaw: deckContext,
             candidatesRaw: candidates,
             limit: 5,
         });
@@ -61,6 +101,7 @@ describe("buildDeckRecommendations", () => {
         const first = buildDeckRecommendations({
             mode: "yolo",
             deckCardIds: [],
+            deckContextRaw: deckContext,
             candidatesRaw: candidates,
             randomSeedKey: "seed-1",
             limit: 3,
@@ -69,11 +110,40 @@ describe("buildDeckRecommendations", () => {
         const second = buildDeckRecommendations({
             mode: "yolo",
             deckCardIds: [],
+            deckContextRaw: deckContext,
             candidatesRaw: candidates,
             randomSeedKey: "seed-1",
             limit: 3,
         });
 
         expect(first).toEqual(second);
+    });
+
+    it("prefers color and tribal synergy from deck context", () => {
+        const output = buildDeckRecommendations({
+            mode: "aggressive",
+            deckCardIds: [],
+            deckContextRaw: deckContext,
+            candidatesRaw: candidates,
+            limit: 4,
+        });
+
+        expect(output[0]?.card_id).toBe("c1");
+        expect(output.find((item) => item.card_id === "c4")?.score ?? 0).toBeLessThan(
+            output.find((item) => item.card_id === "c1")?.score ?? 0,
+        );
+    });
+
+    it("handles sparse candidate payloads gracefully", () => {
+        const output = buildDeckRecommendations({
+            mode: "defensive",
+            deckCardIds: [],
+            deckContextRaw: deckContext,
+            candidatesRaw: [{ id: "s1" }, { id: "s2", text: "you gain life" }],
+            limit: 2,
+        });
+
+        expect(output).toHaveLength(2);
+        expect(output.every((item) => item.reason.length > 0)).toBe(true);
     });
 });

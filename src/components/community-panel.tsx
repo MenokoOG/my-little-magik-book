@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 
 type UserResult = {
   id: string;
@@ -192,13 +193,13 @@ export function CommunityPanel() {
 
   return (
     <div className="grid gap-6 lg:grid-cols-3">
-      <section className="rounded border p-4 lg:col-span-2">
+      <section className="mlmb-panel rounded p-4 lg:col-span-2">
         <h3 className="text-lg font-semibold">Find Players</h3>
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search by display name or email"
-          className="mt-3 w-full rounded border px-3 py-2"
+          className="mlmb-input mt-3 w-full rounded px-3 py-2"
         />
 
         {loadingUsers ? (
@@ -217,11 +218,14 @@ export function CommunityPanel() {
             return (
               <li
                 key={user.id}
-                className="flex items-center justify-between rounded border px-3 py-2"
+                className="mlmb-panel-soft flex items-center justify-between rounded px-3 py-2"
               >
-                <span className="text-sm">
-                  {user.displayName?.trim() || "Unnamed player"}
-                </span>
+                <div className="text-sm">
+                  <p>{user.displayName?.trim() || "Unnamed player"}</p>
+                  <Link href={`/users/${user.id}`} className="text-xs underline">
+                    View profile and decks
+                  </Link>
+                </div>
                 {isFriend ? (
                   <span className="text-xs">Friends</span>
                 ) : hasIncoming ? (
@@ -231,7 +235,7 @@ export function CommunityPanel() {
                 ) : (
                   <button
                     type="button"
-                    className="rounded border px-2 py-1 text-xs"
+                    className="mlmb-button mlmb-focus-ring rounded px-2 py-1 text-xs"
                     onClick={() => void sendRequest(user.id)}
                   >
                     Add Friend
@@ -244,7 +248,7 @@ export function CommunityPanel() {
       </section>
 
       <section className="space-y-4">
-        <div className="rounded border p-4">
+        <div className="mlmb-panel rounded p-4">
           <h3 className="text-lg font-semibold">Incoming Requests</h3>
           {loadingSocial ? (
             <p className="mt-3 text-sm">Loading requests...</p>
@@ -255,21 +259,30 @@ export function CommunityPanel() {
 
           <ul className="mt-3 space-y-2">
             {incoming.map((request) => (
-              <li key={request.id} className="rounded border px-3 py-2 text-sm">
+              <li
+                key={request.id}
+                className="mlmb-panel-soft rounded px-3 py-2 text-sm"
+              >
                 <p>
                   {request.fromUser.displayName?.trim() || "Unnamed player"}
                 </p>
+                <Link
+                  href={`/users/${request.fromUser.id}`}
+                  className="text-xs underline"
+                >
+                  View profile and decks
+                </Link>
                 <div className="mt-2 flex gap-2">
                   <button
                     type="button"
-                    className="rounded border px-2 py-1 text-xs"
+                    className="mlmb-button mlmb-focus-ring rounded px-2 py-1 text-xs"
                     onClick={() => void respondToRequest(request.id, "accept")}
                   >
                     Accept
                   </button>
                   <button
                     type="button"
-                    className="rounded border px-2 py-1 text-xs"
+                    className="mlmb-button mlmb-focus-ring rounded px-2 py-1 text-xs"
                     onClick={() => void respondToRequest(request.id, "reject")}
                   >
                     Reject
@@ -280,7 +293,7 @@ export function CommunityPanel() {
           </ul>
         </div>
 
-        <div className="rounded border p-4">
+        <div className="mlmb-panel rounded p-4">
           <h3 className="text-lg font-semibold">Friends</h3>
           {loadingSocial ? (
             <p className="mt-3 text-sm">Loading friends...</p>
@@ -291,8 +304,14 @@ export function CommunityPanel() {
 
           <ul className="mt-3 space-y-2">
             {friends.map((friend) => (
-              <li key={friend.id} className="rounded border px-3 py-2 text-sm">
-                {friend.displayName?.trim() || "Unnamed player"}
+              <li
+                key={friend.id}
+                className="mlmb-panel-soft rounded px-3 py-2 text-sm"
+              >
+                <p>{friend.displayName?.trim() || "Unnamed player"}</p>
+                <Link href={`/users/${friend.id}`} className="text-xs underline">
+                  View profile and decks
+                </Link>
               </li>
             ))}
           </ul>

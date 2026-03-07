@@ -1,24 +1,145 @@
 @import "tailwindcss";
 
-body {
-  min-height: 100vh;
-  @apply bg-slate-50 text-slate-900 antialiased transition-colors duration-300;
+:root {
+  --mlmb-bg: #f6f1e3;
+  --mlmb-bg-deep: #eadebf;
+  --mlmb-surface: #fffaf0;
+  --mlmb-surface-2: #f7edd6;
+  --mlmb-surface-3: #eee1c4;
+  --mlmb-border: #cdb891;
+  --mlmb-border-strong: #9d7f4f;
+  --mlmb-text: #2f2211;
+  --mlmb-text-muted: #614a26;
+  --mlmb-accent: #a33e22;
+  --mlmb-accent-soft: #f3d8b8;
+  --mlmb-focus: #b5532f;
+  --mlmb-link: #6f2b16;
 }
 
-.dark body {
-  @apply bg-slate-950 text-slate-100;
+.dark {
+  --mlmb-bg: #131925;
+  --mlmb-bg-deep: #0a0f1c;
+  --mlmb-surface: #1b2433;
+  --mlmb-surface-2: #252f42;
+  --mlmb-surface-3: #2d3850;
+  --mlmb-border: #3e4e68;
+  --mlmb-border-strong: #627796;
+  --mlmb-text: #f2eada;
+  --mlmb-text-muted: #c9beaa;
+  --mlmb-accent: #df8155;
+  --mlmb-accent-soft: #3a3138;
+  --mlmb-focus: #f0a06e;
+  --mlmb-link: #ffcc9c;
+}
+
+body {
+  min-height: 100vh;
+  color: var(--mlmb-text);
+  background-color: var(--mlmb-bg);
+  background-image:
+    radial-gradient(circle at 16% 8%, rgba(163, 62, 34, 0.12), transparent 30%),
+    radial-gradient(circle at 84% 0%, rgba(107, 76, 33, 0.16), transparent 28%),
+    radial-gradient(circle at 50% 120%, rgba(214, 170, 103, 0.14), transparent 40%),
+    linear-gradient(180deg, var(--mlmb-bg) 0%, var(--mlmb-bg-deep) 100%);
+  @apply antialiased transition-colors duration-300;
 }
 
 a {
-  color: inherit;
+  color: var(--mlmb-link);
 }
 
 input,
 select,
 textarea {
-  @apply border-slate-300 bg-white/90 text-slate-900 transition-colors dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100;
+  border-color: var(--mlmb-border);
+  background-color: var(--mlmb-surface);
+  color: var(--mlmb-text);
+  @apply transition-colors;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: color-mix(in oklab, var(--mlmb-focus) 78%, #fff 22%);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--mlmb-focus) 25%, transparent 75%);
 }
 
 button {
   @apply transition;
+}
+
+.mlmb-panel {
+  border: 1px solid var(--mlmb-border);
+  background: linear-gradient(180deg, var(--mlmb-surface) 0%, var(--mlmb-surface-2) 100%);
+  box-shadow: 0 14px 34px -22px rgba(69, 44, 14, 0.42);
+}
+
+.mlmb-panel-soft {
+  border: 1px solid color-mix(in oklab, var(--mlmb-border) 82%, #fff 18%);
+  background: linear-gradient(180deg, var(--mlmb-surface-2) 0%, var(--mlmb-surface-3) 100%);
+}
+
+.mlmb-chip {
+  border: 1px solid var(--mlmb-border-strong);
+  background: color-mix(in oklab, var(--mlmb-accent-soft) 84%, #fff 16%);
+  color: var(--mlmb-text);
+}
+
+.mlmb-muted {
+  color: var(--mlmb-text-muted);
+}
+
+.mlmb-shell {
+  border: 1px solid var(--mlmb-border);
+  background: linear-gradient(180deg, color-mix(in oklab, var(--mlmb-surface) 88%, transparent 12%) 0%, color-mix(in oklab, var(--mlmb-surface-2) 86%, transparent 14%) 100%);
+  box-shadow: 0 18px 40px -26px rgba(54, 36, 15, 0.48);
+  backdrop-filter: blur(8px);
+}
+
+.mlmb-nav-link {
+  border: 1px solid var(--mlmb-border);
+  background: color-mix(in oklab, var(--mlmb-surface) 94%, transparent 6%);
+  color: var(--mlmb-text);
+}
+
+.mlmb-nav-link:hover {
+  background: color-mix(in oklab, var(--mlmb-accent-soft) 65%, var(--mlmb-surface) 35%);
+}
+
+.mlmb-button {
+  border: 1px solid var(--mlmb-border-strong);
+  background: linear-gradient(180deg, color-mix(in oklab, var(--mlmb-accent-soft) 60%, #fff 40%) 0%, color-mix(in oklab, var(--mlmb-accent-soft) 78%, #fff 22%) 100%);
+  color: var(--mlmb-text);
+}
+
+.mlmb-button:hover {
+  background: linear-gradient(180deg, color-mix(in oklab, var(--mlmb-accent-soft) 52%, #fff 48%) 0%, color-mix(in oklab, var(--mlmb-accent-soft) 70%, #fff 30%) 100%);
+}
+
+.mlmb-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.mlmb-input {
+  border: 1px solid var(--mlmb-border);
+  background: color-mix(in oklab, var(--mlmb-surface) 95%, transparent 5%);
+  color: var(--mlmb-text);
+}
+
+.mlmb-frame {
+  border: 1px solid color-mix(in oklab, var(--mlmb-border) 78%, #fff 22%);
+  background: color-mix(in oklab, var(--mlmb-surface) 74%, #000 26%);
+}
+
+.mlmb-focus-ring:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--mlmb-focus) 88%, #fff 12%);
+  outline-offset: 2px;
+}
+
+.dark .mlmb-panel,
+.dark .mlmb-panel-soft,
+.dark .mlmb-shell {
+  box-shadow: 0 10px 26px -20px rgba(0, 0, 0, 0.9);
 }

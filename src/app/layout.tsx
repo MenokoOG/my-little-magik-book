@@ -36,7 +36,7 @@ export default function RootLayout({
       <body>
         <ServiceWorkerRegister />
         <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-6 py-5">
-          <header className="mb-8 rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/80">
+          <header className="mlmb-shell mb-8 rounded-2xl p-4">
             <div className="flex items-center justify-between gap-4">
               <h1 className="text-2xl font-semibold tracking-tight">
                 My Little Magik Book
@@ -48,7 +48,7 @@ export default function RootLayout({
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
+                  className="mlmb-nav-link mlmb-focus-ring rounded-xl px-3 py-1.5"
                 >
                   {item.label}
                 </Link>

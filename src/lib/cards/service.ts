@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { normalizeCardsPayload } from "@/lib/cards/image-url";
 import { env } from "@/lib/env";
 
 const SEARCH_CACHE = new Map<string, { payload: unknown; expiresAt: number }>();
@@ -68,7 +69,7 @@ export async function fetchCardsSearch(urlSearchParams: URLSearchParams) {
         throw new Error(`Card search request failed with status ${response.status}`);
     }
 
-    const payload = await response.json();
+    const payload = normalizeCardsPayload(await response.json());
 
     SEARCH_CACHE.set(cacheKey, {
         payload,
@@ -95,5 +96,5 @@ export async function fetchCardById(cardId: string) {
         throw new Error(`Card details request failed with status ${response.status}`);
     }
 
-    return response.json();
+    return normalizeCardsPayload(await response.json());
 }

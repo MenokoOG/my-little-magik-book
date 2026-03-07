@@ -39,7 +39,7 @@ export function ThemeToggle() {
       onClick={() =>
         setTheme((current) => (current === "dark" ? "light" : "dark"))
       }
-      className="rounded-xl border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+      className="mlmb-button mlmb-focus-ring rounded-xl px-3 py-1 text-xs font-medium"
       aria-label="Toggle color theme"
     >
       {theme === "dark" ? "☀ Light" : "🌙 Dark"}

@@ -61,6 +61,20 @@ export default async function UserPage({ params }: UserPageProps) {
     },
   });
 
+  const totalDeckCount = await db.deck.count({
+    where: {
+      ownerId: viewedUser.id,
+    },
+  });
+
+  const noVisibleDeckMessage = isSelf
+    ? "You have not created any decks yet. Open Deck Builder to create your first one."
+    : totalDeckCount === 0
+      ? "This player has not created any decks yet."
+      : friendship
+        ? "This player has decks, but none are currently shared with friends or public visibility."
+        : "This player has no public decks visible right now. Send a friend request to view friends-only decks.";
+
   return (
     <div className="space-y-6">
       <PageShell
@@ -69,7 +83,9 @@ export default async function UserPage({ params }: UserPageProps) {
       />
 
       {decks.length === 0 ? (
-        <p className="text-sm">No visible decks for this user.</p>
+        <p className="mlmb-muted text-sm dark:text-slate-300">
+          {noVisibleDeckMessage}
+        </p>
       ) : (
         <ul className="space-y-3">
           {decks.map((deck) => {
@@ -77,19 +93,37 @@ export default async function UserPage({ params }: UserPageProps) {
               (sum, entry) => sum + entry.quantity,
               0,
             );
+            const visibilityTone =
+              deck.visibility === DeckVisibility.PUBLIC
+                ? "text-emerald-700 dark:text-emerald-300"
+                : deck.visibility === DeckVisibility.FRIENDS
+                  ? "text-amber-700 dark:text-amber-300"
+                  : "text-rose-700 dark:text-rose-300";
 
             return (
-              <li key={deck.id} className="rounded border p-4">
+              <li
+                key={deck.id}
+                className="mlmb-panel rounded p-4 dark:border-slate-800 dark:bg-slate-900/70"
+              >
                 <p className="font-medium">{deck.name}</p>
                 <p className="mt-1 text-sm">
-                  {deck.mode} · {deck.visibility} · {totalCards} cards
+                  {deck.mode} ·{" "}
+                  <span className={visibilityTone}>{deck.visibility}</span> ·{" "}
+                  {totalCards} cards
                 </p>
-                <Link
-                  href="/deck"
-                  className="mt-2 inline-block text-sm underline"
-                >
-                  Open your own deck builder
-                </Link>
+                {isSelf ? (
+                  <Link
+                    href="/deck"
+                    className="mt-2 inline-block text-sm underline"
+                  >
+                    Open your deck builder
+                  </Link>
+                ) : (
+                  <p className="mlmb-muted mt-2 text-xs dark:text-slate-300">
+                    Shared deck preview. Editing is only available in your own
+                    deck builder.
+                  </p>
+                )}
               </li>
             );
           })}

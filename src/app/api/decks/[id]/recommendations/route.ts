@@ -165,6 +165,7 @@ export async function POST(request: Request, context: Context) {
     const recommendations = buildDeckRecommendations({
         mode: modeParse.data,
         deckCardIds,
+        deckContextRaw: contextCards,
         candidatesRaw: [...contextCards, ...seedCandidates],
         limit: 8,
         randomSeedKey: `${deck.id}:${deck.updatedAt.toISOString()}`,

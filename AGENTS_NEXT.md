@@ -286,3 +286,249 @@ npm run dev
 ```
 
 - **Next action before Render release:** confirm Render service config uses the README build/start commands and that health check is set to `/learn`.
+
+---
+
+## 7) Follow-up execution (2026-03-07) — recommendation v2 + PWA cache hardening
+
+This section captures the latest implementation work started from this handoff.
+
+### What changed
+
+1. **Recommendation engine upgraded with deck-context scoring (v2 heuristics)**
+   - Updated `src/lib/decks/recommender.ts`:
+     - Added deck-profile extraction from current deck context (`colors`, average CMC, frequent subtypes, repeated combat keywords).
+     - Added synergy scoring layer used by all modes:
+       - color overlap boost / color mismatch penalty
+       - subtype package synergy boost
+       - repeated-keyword synergy boost
+       - mana-curve fit boost / severe curve mismatch penalty
+     - Preserved explainable output contract and deterministic yolo behavior:
+       - output remains `{ card_id, score, reason }`
+       - seeded random ordering remains deterministic for identical seed inputs.
+   - Updated recommendation route integration in `src/app/api/decks/[id]/recommendations/route.ts`:
+     - now passes `deckContextRaw` to recommender explicitly for profile-aware scoring.
+
+2. **Recommendation unit coverage expanded**
+   - Updated `src/lib/decks/recommender.test.ts`:
+     - Existing tests retained.
+     - Added tests for:
+       - preference toward color/tribal synergy with deck context
+       - graceful behavior on sparse candidate payloads (missing fields)
+   - Test count for this file increased from `3` to `5`.
+
+3. **PWA runtime caching hardened for offline resilience**
+   - Updated `public/sw.js`:
+     - cache version bumped to `mlmb-static-v2`
+     - install now pre-caches `/` and `/learn`
+     - documents use a network-first strategy with cached fallback
+     - static assets switched to stale-while-revalidate
+     - offline fallback response added when neither request nor fallback is cached
+   - Updated `src/app/manifest.ts`:
+     - added `id` and `scope`
+     - added `display_override`
+     - set icon `purpose` to `maskable`
+
+### Validation outputs (this pass)
+
+- `npm run test -- src/lib/decks/recommender.test.ts`
+  - PASS (`1` file, `5` tests)
+
+- `npm run lint`
+  - PASS (`✔ No ESLint warnings or errors`)
+
+- `npm run build`
+  - PASS (`Compiled successfully`)
+
+- `npm run test`
+  - PASS (`6` files passed, `15` tests passed)
+
+- Runtime smoke (`npm run dev`, localhost):
+  - `LEARN=200`
+  - `MANIFEST=200`
+  - `SW=200`
+
+### Notes
+
+- Integration tests require local Postgres running (`localhost:5432`).
+- If DB is down, run:
+
+```bash
+docker compose up -d
+npx prisma migrate deploy
+```
+
+### Remaining release action
+
+- Confirm live Render service configuration matches README checklist:
+  - build command
+  - start command
+  - env vars
+  - health check path `/learn`
+
+---
+
+## 8) Priority user follow-up request (next conversation)
+
+User asked for a targeted UX + feature pass before continuing release work.
+
+### A) Critical bug to resolve first
+
+1. **Card images are not rendering at all in UI**
+
+- Affects card presentation flows (Explore/Deck and any deck-sharing views).
+- Investigate and fix root cause end-to-end.
+- Verify image URLs from API payload and browser rendering path (including protocol/allowlist compatibility and fallback handling).
+
+Acceptance checks:
+
+- Explore card list image renders for multiple cards.
+- Explore card detail image renders.
+- Deck card image renders in both collection and deck pane.
+- Missing image fallback still behaves gracefully.
+
+### B) Community feature enhancement
+
+2. **Open/view friend decks from community UI by clicking a friend name (or equivalent affordance)**
+
+- Add clear interaction in community/home friends area to open a friend profile/deck view.
+- Respect deck visibility rules (`PRIVATE`, `FRIENDS`, `PUBLIC`).
+- If friend has not shared decks (or no visible decks), show clear explanatory message.
+
+Acceptance checks:
+
+- Clicking friend row/name leads to visible deck view flow (`/users/[id]` or equivalent).
+- Shared deck appears when visibility allows access.
+- Non-shared/private deck shows explicit user-facing message instead of silent empty state.
+
+### C) Visual redesign request (light theme)
+
+3. **Light theme needs major polish; card areas are currently too dark**
+
+- Keep existing functionality/security, but redesign light-mode surfaces and card modules.
+- Use a Magic-inspired palette and stronger visual identity.
+- Incorporate tasteful themed graphics/motifs and improve overall "stunning" quality.
+
+Design direction constraints:
+
+- Improve contrast and readability in light mode.
+- Card containers/surfaces must be visibly lighter and visually distinct.
+- Keep responsive behavior for desktop/mobile.
+- Preserve accessibility (focus states, keyboard support, readable text contrast).
+
+### Suggested execution order
+
+1. Fix image rendering regression first.
+2. Add friend-click deck viewing UX + visibility messaging.
+3. Apply light-theme visual redesign and validate core pages.
+4. Re-run `npm run lint && npm run build && npm run test` and smoke-check affected routes.
+
+---
+
+## 9) Follow-up execution (2026-03-07) — priority UX + feature pass
+
+This section captures the requested priority pass implementation.
+
+### What changed
+
+1. **Card image rendering bug fixed end-to-end**
+   - Root cause confirmed: upstream MTG image URLs were primarily `http://...` and blocked by CSP (`img-src ... https:`).
+   - Added shared image normalization module:
+     - `src/lib/cards/image-url.ts`
+     - `normalizeImageUrl` upgrades `http` to `https`, rejects non-HTTPS/invalid URLs.
+     - `normalizeCardsPayload` sanitizes `cards[]` and `card` payload shapes.
+   - Service + route integration updates:
+     - `src/lib/cards/service.ts` now normalizes payloads before returning/cacheing search/detail responses.
+     - `src/app/api/cards/[cardId]/route.ts` now normalizes cached payloads on read and normalized payloads on upsert.
+   - UI fallback hardening:
+     - `src/components/explore-browser.tsx` and `src/components/deck-builder.tsx` now normalize URLs client-side defensively and track image load failures with explicit fallback placeholders.
+
+2. **Community click-to-profile/decks UX implemented**
+   - Added explicit friend/user affordances linking to `/users/[id]` in:
+     - `src/components/friends-widget.tsx`
+     - `src/components/community-panel.tsx`
+   - Updated profile/deck visibility messaging in:
+     - `src/app/users/[id]/page.tsx`
+   - Messaging now distinguishes:
+     - viewer self with no decks
+     - target user with no decks
+     - friend viewer with no shared decks
+     - non-friend viewer with no public decks
+   - Removed misleading non-owner call to "Open your own deck builder" for viewed-user decks and replaced with explicit read-only context text.
+
+3. **Light theme redesign pass (Magic-inspired)**
+   - Added themed light-mode design tokens and motif background system in:
+     - `src/app/globals.css`
+   - New reusable themed classes:
+     - `.mlmb-panel`, `.mlmb-panel-soft`, `.mlmb-chip`, `.mlmb-muted`
+   - Applied redesigned surfaces and clearer contrast to key areas:
+     - `src/components/page-shell.tsx`
+     - `src/components/explore-browser.tsx`
+     - `src/components/deck-builder.tsx`
+     - `src/components/community-panel.tsx`
+     - `src/components/friends-widget.tsx`
+     - `src/app/home/page.tsx`
+     - `src/app/users/[id]/page.tsx`
+
+4. **New unit tests for image normalization**
+   - Added `src/lib/cards/service.test.ts` covering:
+     - http->https upgrades
+     - invalid protocol rejection
+     - search/detail payload normalization behavior
+
+### Validation outputs (this pass)
+
+- `docker compose up -d`
+  - PASS (Postgres container started)
+
+- `npx prisma migrate deploy`
+  - PASS (migration `20260301234811_init` applied)
+
+- `npm run lint`
+  - PASS (`✔ No ESLint warnings or errors`)
+
+- `npm run build`
+  - PASS (`Compiled successfully`)
+
+- `npm run test`
+  - PASS (`7` files passed, `19` tests passed)
+
+- Runtime smoke (`npm run dev`, localhost)
+  - `GET /api/cards/search?q=dragon&pageSize=5` => `200`
+  - Search payload image URLs sample: `http=0`, `https>0`
+  - `GET /api/cards/:id` => `200`
+  - Detail payload `card.imageUrl` observed as `https://...`
+
+### Notes
+
+- Security posture preserved:
+  - no relaxations to authz/CSRF/rate limiting
+  - no new non-allowlisted runtime outbound dependencies
+  - allowlist/API origin checks remain in place
+- Manual browser QA of visual rendering and click flows should still be performed for final release sign-off.
+
+### Pre-existing Problems To Fix Next Session
+
+The following diagnostics/issues were present in the working branch context and should be addressed in a follow-up cleanup pass:
+
+- `src/components/deck-builder.tsx`
+  - editor diagnostic for inline style usage on draggable transform.
+  - editor diagnostics for list semantics where `<ul>` may contain non-`<li>` children in some render paths.
+- `README.md`
+  - markdownlint issues (`MD034` bare URL and ordered-list prefix style).
+- `AGENTS_NEXT.md`
+  - markdownlint issues from historical duplicated headings and ordered-list prefix style in older sections.
+- `HANDOFF_PROMPT_NEXT_CONVERSATION.md`
+  - markdownlint ordered-list prefix style if numbered list formatting is used.
+
+### Next Session Cleanup Plan
+
+- Fix semantic HTML/list structure and accessibility warnings in `src/components/deck-builder.tsx`.
+- Normalize markdown formatting in:
+  - `README.md`
+  - `AGENTS_NEXT.md`
+  - `HANDOFF_PROMPT_NEXT_CONVERSATION.md`
+- Re-run full gates:
+  - `npm run lint`
+  - `npm run build`
+  - `npm run test`

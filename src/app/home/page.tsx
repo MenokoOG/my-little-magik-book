@@ -13,13 +13,13 @@ export default function HomePage() {
       <div className="flex flex-wrap gap-3">
         <Link
           href="/explore"
-          className="rounded border px-4 py-2 text-sm font-medium"
+          className="mlmb-chip rounded px-4 py-2 text-sm font-medium dark:border-slate-700 dark:bg-slate-900"
         >
           Explore Cards
         </Link>
         <Link
           href="/deck"
-          className="rounded border px-4 py-2 text-sm font-medium"
+          className="mlmb-chip rounded px-4 py-2 text-sm font-medium dark:border-slate-700 dark:bg-slate-900"
         >
           My Deck
         </Link>

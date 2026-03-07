@@ -43,6 +43,28 @@ npm run dev
 
 Open http://localhost:3000.
 
+### 6) Run checks locally
+
+Integration tests require PostgreSQL to be running.
+
+```bash
+docker compose up -d
+npx prisma migrate deploy
+npm run lint && npm run build && npm run test
+```
+
+## PWA verification quick checklist
+
+Use this before release:
+
+```text
+[ ] /manifest.webmanifest returns 200 and includes app name + icons
+[ ] /sw.js returns 200 and service worker is active in browser devtools
+[ ] Offline refresh of /learn serves cached content
+[ ] Offline refresh of /explore shows degraded/offline messaging
+[ ] Offline deck writes remain blocked (no queued writes without explicit queue/retry)
+```
+
 ## Security and privacy
 
 See `SECURITY.md` and `security.txt`.

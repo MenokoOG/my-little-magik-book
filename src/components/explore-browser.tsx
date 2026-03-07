@@ -25,22 +25,41 @@ type CardDetails = {
 
 const RARITY_OPTIONS = ["", "Common", "Uncommon", "Rare", "Mythic"];
 
-function normalizeCard(raw: Record<string, unknown>): CardListItem {
-  const image = raw.imageUrl;
+function toDisplayImageUrl(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
 
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const upgraded = trimmed.replace(/^http:\/\//i, "https://");
+  try {
+    const parsed = new URL(upgraded);
+    if (parsed.protocol !== "https:") {
+      return null;
+    }
+
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+function normalizeCard(raw: Record<string, unknown>): CardListItem {
   return {
     id: String(raw.id ?? ""),
     name: String(raw.name ?? "Unknown card"),
     type: String(raw.type ?? "Unknown type"),
     rarity: String(raw.rarity ?? "Unknown rarity"),
     setName: String(raw.setName ?? "Unknown set"),
-    imageUrl: typeof image === "string" && image.trim() ? image : null,
+    imageUrl: toDisplayImageUrl(raw.imageUrl),
   };
 }
 
 function normalizeDetails(raw: Record<string, unknown>): CardDetails {
-  const image = raw.imageUrl;
-
   return {
     id: String(raw.id ?? ""),
     name: String(raw.name ?? "Unknown card"),
@@ -49,7 +68,7 @@ function normalizeDetails(raw: Record<string, unknown>): CardDetails {
     manaCost: String(raw.manaCost ?? "N/A"),
     rarity: String(raw.rarity ?? "Unknown rarity"),
     setName: String(raw.setName ?? "Unknown set"),
-    imageUrl: typeof image === "string" && image.trim() ? image : null,
+    imageUrl: toDisplayImageUrl(raw.imageUrl),
   };
 }
 
@@ -68,6 +87,9 @@ export function ExploreBrowser() {
   >("idle");
   const [status, setStatus] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
+  const [failedImageUrls, setFailedImageUrls] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   useEffect(() => {
     const syncOnlineState = () => {
@@ -190,7 +212,7 @@ export function ExploreBrowser() {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Try: dragon, bolt, angel..."
-            className="w-full rounded-xl border px-3 py-2"
+            className="mlmb-input w-full rounded-xl px-3 py-2"
           />
         </label>
 
@@ -199,7 +221,7 @@ export function ExploreBrowser() {
           <select
             value={rarity}
             onChange={(event) => setRarity(event.target.value)}
-            className="w-full rounded-xl border px-3 py-2"
+            className="mlmb-input w-full rounded-xl px-3 py-2"
           >
             {RARITY_OPTIONS.map((option) => (
               <option key={option || "all"} value={option}>
@@ -215,7 +237,7 @@ export function ExploreBrowser() {
             value={typeFilter}
             onChange={(event) => setTypeFilter(event.target.value)}
             placeholder="Example: Creature"
-            className="w-full rounded-xl border px-3 py-2"
+            className="mlmb-input w-full rounded-xl px-3 py-2"
           />
         </label>
       </div>
@@ -237,7 +259,7 @@ export function ExploreBrowser() {
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <section className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/70">
+        <section className="mlmb-panel rounded-2xl p-4">
           <h3 className="text-lg font-semibold">Results</h3>
           <ul className="mt-3 max-h-[28rem] space-y-2 overflow-auto pr-1">
             {cards.map((card) => (
@@ -245,26 +267,33 @@ export function ExploreBrowser() {
                 <button
                   type="button"
                   onClick={() => setSelectedCardId(card.id)}
-                  className={`w-full rounded-xl border px-3 py-2 text-left ${selectedCardId === card.id ? "border-indigo-500 bg-indigo-50/70 font-semibold dark:bg-indigo-950/40" : ""}`}
+                  className={`mlmb-focus-ring w-full rounded-xl border px-3 py-2 text-left ${selectedCardId === card.id ? "mlmb-chip border-amber-800/80 font-semibold" : "mlmb-input"}`}
                 >
                   <div className="flex items-center gap-3">
-                    {card.imageUrl ? (
+                    {card.imageUrl && !failedImageUrls.has(card.imageUrl) ? (
                       <Image
                         src={card.imageUrl}
                         alt={card.name}
                         width={48}
                         height={64}
                         unoptimized
-                        className="h-16 w-12 rounded-md border border-slate-200 object-cover dark:border-slate-700"
+                        onError={() =>
+                          setFailedImageUrls((current) => {
+                            const next = new Set(current);
+                            next.add(card.imageUrl as string);
+                            return next;
+                          })
+                        }
+                        className="mlmb-frame h-16 w-12 rounded-md object-cover"
                       />
                     ) : (
-                      <div className="flex h-16 w-12 items-center justify-center rounded-md border border-slate-200 text-[10px] opacity-70 dark:border-slate-700">
+                      <div className="mlmb-frame mlmb-muted flex h-16 w-12 items-center justify-center rounded-md text-[10px]">
                         No art
                       </div>
                     )}
                     <div>
                       <p>{card.name}</p>
-                      <p className="text-xs opacity-75">
+                      <p className="mlmb-muted text-xs">
                         {card.type} · {card.rarity} · {card.setName}
                       </p>
                     </div>
@@ -275,7 +304,7 @@ export function ExploreBrowser() {
           </ul>
         </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/70">
+        <section className="mlmb-panel rounded-2xl p-4">
           <h3 className="text-lg font-semibold">Card Details</h3>
           {detailsState === "loading" ? (
             <p className="mt-3 text-sm">Loading details...</p>
@@ -289,16 +318,28 @@ export function ExploreBrowser() {
             <p className="mt-3 text-sm">Select a card to view details.</p>
           ) : (
             <div className="mt-3 space-y-2 text-sm">
-              {selectedCard.imageUrl ? (
+              {selectedCard.imageUrl &&
+              !failedImageUrls.has(selectedCard.imageUrl) ? (
                 <Image
                   src={selectedCard.imageUrl}
                   alt={selectedCard.name}
                   width={488}
                   height={680}
                   unoptimized
-                  className="h-72 w-full rounded-xl border border-slate-200 object-contain dark:border-slate-700"
+                  onError={() =>
+                    setFailedImageUrls((current) => {
+                      const next = new Set(current);
+                      next.add(selectedCard.imageUrl as string);
+                      return next;
+                    })
+                  }
+                  className="mlmb-frame h-72 w-full rounded-xl object-contain"
                 />
-              ) : null}
+              ) : (
+                <div className="mlmb-frame mlmb-muted flex h-72 w-full items-center justify-center rounded-xl text-xs">
+                  Card art unavailable for this printing.
+                </div>
+              )}
               <p className="text-lg font-medium">{selectedCard.name}</p>
               <p>{selectedCard.type}</p>
               <p>Mana Cost: {selectedCard.manaCost}</p>

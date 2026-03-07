@@ -62,10 +62,32 @@ const MODE_QUERY: Record<DeckMode, "aggressive" | "defensive" | "yolo"> = {
   YOLO: "yolo",
 };
 
+function toDisplayImageUrl(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const upgraded = trimmed.replace(/^http:\/\//i, "https://");
+  try {
+    const parsed = new URL(upgraded);
+    if (parsed.protocol !== "https:") {
+      return null;
+    }
+
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
 function parseCardMeta(raw: Record<string, unknown>): CardMeta {
   const id = String(raw.id ?? "");
   const name = String((raw.name ?? id) || "Unknown card");
-  const image = raw.imageUrl;
   const cmcRaw = raw.cmc;
   const manaValue =
     typeof cmcRaw === "number"
@@ -79,7 +101,7 @@ function parseCardMeta(raw: Record<string, unknown>): CardMeta {
     name,
     manaValue: Number.isFinite(manaValue ?? NaN) ? Number(manaValue) : null,
     typeLine: String(raw.type ?? "Unknown type"),
-    imageUrl: typeof image === "string" && image.trim() ? image : null,
+    imageUrl: toDisplayImageUrl(raw.imageUrl),
   };
 }
 
@@ -94,6 +116,7 @@ function DraggableCard({
   subtitle: string;
   actions?: React.ReactNode;
 }) {
+  const [imageFailed, setImageFailed] = useState(false);
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({
       id: dragId,
@@ -109,20 +132,21 @@ function DraggableCard({
     <li
       ref={setNodeRef}
       style={style}
-      className={`rounded-xl border border-slate-200 bg-white/80 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900/70 ${isDragging ? "opacity-60" : "opacity-100"}`}
+      className={`mlmb-panel-soft rounded-xl p-3 ${isDragging ? "opacity-60" : "opacity-100"}`}
     >
       <div className="flex items-start gap-3">
-        {card.imageUrl ? (
+        {card.imageUrl && !imageFailed ? (
           <Image
             src={card.imageUrl}
             alt={card.name}
             width={48}
             height={64}
             unoptimized
-            className="h-16 w-12 rounded-md border border-slate-200 object-cover dark:border-slate-700"
+            onError={() => setImageFailed(true)}
+            className="mlmb-frame h-16 w-12 rounded-md object-cover"
           />
         ) : (
-          <div className="flex h-16 w-12 items-center justify-center rounded-md border border-slate-200 text-[10px] opacity-70 dark:border-slate-700">
+          <div className="mlmb-frame mlmb-muted flex h-16 w-12 items-center justify-center rounded-md text-[10px]">
             No art
           </div>
         )}
@@ -133,7 +157,7 @@ function DraggableCard({
           {...attributes}
         >
           <p className="font-medium">{card.name}</p>
-          <p className="text-xs opacity-75">{subtitle}</p>
+          <p className="mlmb-muted text-xs">{subtitle}</p>
         </button>
       </div>
       {actions ? <div className="mt-2">{actions}</div> : null}
@@ -155,7 +179,7 @@ function DropZone({
   return (
     <section
       ref={setNodeRef}
-      className={`rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/70 ${isOver ? "ring-2 ring-indigo-500" : ""}`}
+      className={`mlmb-panel rounded-2xl p-4 ${isOver ? "ring-2 ring-amber-700/70" : ""}`}
     >
       <h3 className="mb-3 text-lg font-semibold">{title}</h3>
       {children}
@@ -185,6 +209,9 @@ export function DeckBuilder() {
   const [recommendationState, setRecommendationState] = useState<
     "idle" | "loading" | "error"
   >("idle");
+  const [failedImageUrls, setFailedImageUrls] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   const activeDeck = useMemo(
     () => decks.find((deck) => deck.mode === activeMode) ?? null,
@@ -628,7 +655,7 @@ export function DeckBuilder() {
             key={mode}
             type="button"
             onClick={() => setActiveMode(mode)}
-            className={`rounded-xl border px-3 py-2 text-sm ${activeMode === mode ? "border-indigo-500 bg-indigo-50 font-semibold dark:bg-indigo-950/40" : "border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-900"}`}
+            className={`mlmb-focus-ring rounded-xl border px-3 py-2 text-sm ${activeMode === mode ? "mlmb-chip border-amber-800/80 font-semibold" : "mlmb-input"}`}
           >
             {MODE_LABELS[mode]}
           </button>
@@ -664,7 +691,7 @@ export function DeckBuilder() {
                 }}
                 onBlur={() => void updateDeckMeta({ name: activeDeck.name })}
                 disabled={isOffline}
-                className="w-full rounded-xl border px-3 py-2"
+                className="mlmb-input w-full rounded-xl px-3 py-2"
               />
             </label>
 
@@ -684,7 +711,7 @@ export function DeckBuilder() {
                   void updateDeckMeta({ visibility });
                 }}
                 disabled={isOffline}
-                className="w-full rounded-xl border px-3 py-2"
+                className="mlmb-input w-full rounded-xl px-3 py-2"
               >
                 <option value="PRIVATE">Private</option>
                 <option value="FRIENDS">Friends</option>
@@ -693,9 +720,9 @@ export function DeckBuilder() {
             </label>
           </div>
 
-          <section className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/70">
+          <section className="mlmb-panel rounded-2xl p-4">
             <h3 className="text-lg font-semibold">Recommendations</h3>
-            <p className="mt-1 text-sm opacity-80">
+            <p className="mlmb-muted mt-1 text-sm">
               Mode-aware suggestions with explainable scoring.
             </p>
 
@@ -723,28 +750,39 @@ export function DeckBuilder() {
                   return (
                     <li
                       key={item.card_id}
-                      className="rounded-xl border border-slate-200 bg-white/80 p-3 text-sm dark:border-slate-700 dark:bg-slate-900/70"
+                      className="mlmb-panel-soft rounded-xl p-3 text-sm"
                     >
-                      {meta?.imageUrl ? (
+                      {meta?.imageUrl && !failedImageUrls.has(meta.imageUrl) ? (
                         <Image
                           src={meta.imageUrl}
                           alt={meta.name}
                           width={488}
                           height={680}
                           unoptimized
-                          className="mb-2 h-36 w-full rounded-lg border border-slate-200 object-contain dark:border-slate-700"
+                          onError={() =>
+                            setFailedImageUrls((current) => {
+                              const next = new Set(current);
+                              next.add(meta.imageUrl as string);
+                              return next;
+                            })
+                          }
+                          className="mlmb-frame mb-2 h-36 w-full rounded-lg object-contain"
                         />
-                      ) : null}
+                      ) : (
+                        <div className="mlmb-frame mlmb-muted mb-2 flex h-36 w-full items-center justify-center rounded-lg text-xs">
+                          Card art unavailable.
+                        </div>
+                      )}
                       <p className="font-medium">
                         {meta?.name ?? item.card_id}
                       </p>
-                      <p className="opacity-80">
+                      <p className="mlmb-muted">
                         Score {item.score.toFixed(2)}
                       </p>
-                      <p className="opacity-80">{item.reason}</p>
+                      <p className="mlmb-muted">{item.reason}</p>
                       <button
                         type="button"
-                        className="mt-2 rounded-lg border px-2 py-1 text-xs"
+                        className="mlmb-button mlmb-focus-ring mt-2 rounded-lg px-2 py-1 text-xs"
                         disabled={isOffline || savingCards}
                         onClick={() => addCard(item.card_id)}
                       >
@@ -770,7 +808,7 @@ export function DeckBuilder() {
                     onChange={(event) => setSearch(event.target.value)}
                     placeholder="Try: lightning, dragon, elf..."
                     disabled={isOffline}
-                    className="w-full rounded-xl border px-3 py-2"
+                    className="mlmb-input w-full rounded-xl px-3 py-2"
                   />
                 </div>
 
@@ -796,7 +834,7 @@ export function DeckBuilder() {
                       actions={
                         <button
                           type="button"
-                          className="rounded-lg border px-2 py-1 text-xs"
+                          className="mlmb-button mlmb-focus-ring rounded-lg px-2 py-1 text-xs"
                           disabled={isOffline || savingCards}
                           onClick={() => addCard(card.id)}
                         >
@@ -855,7 +893,7 @@ export function DeckBuilder() {
                             <div className="flex items-center gap-2">
                               <button
                                 type="button"
-                                className="rounded-lg border px-2 py-1 text-xs"
+                                className="mlmb-button mlmb-focus-ring rounded-lg px-2 py-1 text-xs"
                                 disabled={isOffline || savingCards}
                                 onClick={() => decrementCard(entry.cardId)}
                               >
@@ -863,7 +901,7 @@ export function DeckBuilder() {
                               </button>
                               <button
                                 type="button"
-                                className="rounded-lg border px-2 py-1 text-xs"
+                                className="mlmb-button mlmb-focus-ring rounded-lg px-2 py-1 text-xs"
                                 disabled={isOffline || savingCards}
                                 onClick={() => addCard(entry.cardId)}
                               >
